@@ -17,8 +17,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OU
 
 #pragma once
 
-#pragma warning ( disable: 4996 )  // for boost\random\detail\polynomial.hpp
-
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -348,7 +346,7 @@ template<typename T>
 void readTypeOfRealList2D( const std::wstring& str, std::vector<std::vector<shared_ptr<T> > >& target_vec )
 {
 	// example: ((.38,12.0,.04),(.38,1.0,346.0),(1.8,1.0,.04))
-	wchar_t const* ch = str.c_str();
+	auto ch = str.c_str();
 
 	const size_t argsize = str.size();
 	if( argsize == 0 )
@@ -586,7 +584,7 @@ void readSelectType( const std::wstring& item, shared_ptr<select_t>& result, con
 		return;
 	}
 
-	std::transform(type_name.begin(), type_name.end(), type_name.begin(), toupper );
+	std::transform(type_name.begin(), type_name.end(), type_name.begin(), [](wchar_t c) {return static_cast<wchar_t>(std::toupper(c)); });
 	
 	shared_ptr<BuildingObject> type_instance = TypeFactory::createTypeObject(type_name.c_str(), inline_arg, map_entities );
 	if( type_instance )
