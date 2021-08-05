@@ -35,6 +35,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OU
 #include <ifcpp/IFC4/include/IfcGeometricCurveSet.h>
 #include <ifcpp/IFC4/include/IfcGeometricRepresentationItem.h>
 #include <ifcpp/IFC4/include/IfcGeometricSet.h>
+#include <ifcpp/IFC4/include/IfcGloballyUniqueId.h>
 #include <ifcpp/IFC4/include/IfcLabel.h>
 #include <ifcpp/IFC4/include/IfcMappedItem.h>
 #include <ifcpp/IFC4/include/IfcOpenShell.h>
@@ -947,7 +948,11 @@ public:
 
 			// opening can have its own relative placement
 			shared_ptr<IfcObjectPlacement>	opening_placement = opening->m_ObjectPlacement;
-			shared_ptr<ProductShapeData> product_shape_opening( new ProductShapeData( opening_placement->m_entity_id ) );
+			shared_ptr<ProductShapeData> product_shape_opening( new ProductShapeData() );
+			if (opening->m_GlobalId)
+			{
+				product_shape_opening->m_entity_guid = opening->m_GlobalId->m_value;
+			}
 			if( opening_placement )
 			{
 				std::unordered_set<IfcObjectPlacement*> opening_placements_applied;
@@ -1075,6 +1080,7 @@ public:
 									shared_ptr<carve::mesh::MeshSet<3> > result;
 									try
 									{
+										CSG_Adapter::retriangulateMeshSet(product_meshset);
 										CSG_Adapter::computeCSG( product_meshset, opening_meshset, carve::csg::CSG::A_MINUS_B, result, this, ifc_element );
 									}
 									catch( OutOfMemoryException& e )

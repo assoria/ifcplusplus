@@ -217,6 +217,16 @@ public:
 					}
 				}
 
+				if (segments.empty())
+				{
+					for (auto i = 0; i < pointVec.size() - 1; ++i)
+					{
+						target_vec.push_back(pointVec[i]);
+						target_vec.push_back(pointVec[i + 1]);
+						segment_start_points.push_back(pointVec[i]);
+					}
+				}
+
 				for (size_t ii = 0; ii < segments.size(); ++ii)
 				{
 					const shared_ptr<IfcSegmentIndexSelect>& segment = segments[ii];
@@ -509,32 +519,157 @@ public:
 					{
 						double x_radius = ellipse->m_SemiAxis1->m_value*length_factor;
 						double y_radius = ellipse->m_SemiAxis2->m_value*length_factor;
-						int num_segments = m_geom_settings->getNumVerticesPerCircleWithRadius(
-                                std::max(x_radius, y_radius));
+						
 
-						// todo: implement clipping
 
-						std::vector<vec3> circle_points;
-						double angle = 0;
-						for( int i = 0; i < num_segments; ++i )
+						vec3 ellipse_center;
+						if (conic_position_matrix)
 						{
-							circle_points.push_back( vec3( carve::geom::VECTOR( x_radius * cos( angle ), y_radius * sin( angle ), 0 ) ) );
-							angle += 2.0*M_PI / double( num_segments );
+							ellipse_center = conic_position_matrix->m_matrix * carve::geom::VECTOR(0, 0, 0);
+						}
+
+						double trim_angle1 = 0.0;
+						double trim_angle2 = M_PI * 2.0;
+
+						// check for trimming begin
+						shared_ptr<IfcParameterValue> trim_par1;
+						if (trim1_vec.size() > 0)
+						{
+							if (GeomUtils::findFirstInVector(trim1_vec, trim_par1))
+							{
+								double plane_angle_factor = m_point_converter->getUnitConverter()->getAngleInRadiantFactor();
+								if (m_point_converter->getUnitConverter()->getAngularUnit() == UnitConverter::UNDEFINED)
+								{
+									// angular unit definition not found in model, default to radian
+									plane_angle_factor = 1.0;
+
+									if (trim_par1->m_value > M_PI)
+									{
+										// assume degree
+										plane_angle_factor = M_PI / 180.0;
+									}
+								}
+
+								trim_angle1 = trim_par1->m_value * plane_angle_factor;
+							}
+							else
+							{
+								shared_ptr<IfcCartesianPoint> trim_point1;
+								if (GeomUtils::findFirstInVector(trim1_vec, trim_point1))
+								{
+									vec3 trim_point;
+									PointConverter::convertIfcCartesianPoint(trim_point1, trim_point, length_factor);
+									// TODO: get direction of trim_point to ellipse_center, get angle. This is more robust in case the trim_point is not exactly on the ellipse
+									trim_angle1 = m_point_converter->getAngleOnEllipse(ellipse_center, x_radius, y_radius, trim_point);
+								}
+							}
+						}
+
+						if (trim2_vec.size() > 0)
+						{
+							// check for trimming end
+							shared_ptr<IfcParameterValue> trim_par2;
+							if (GeomUtils::findFirstInVector(trim2_vec, trim_par2))
+							{
+								double plane_angle_factor = m_point_converter->getUnitConverter()->getAngleInRadiantFactor();
+								if (m_point_converter->getUnitConverter()->getAngularUnit() == UnitConverter::UNDEFINED)
+								{
+									// angular unit definition not found in model, default to radian
+									plane_angle_factor = 1.0;
+
+									if (trim_par2->m_value > M_PI)
+									{
+										// assume degree
+										plane_angle_factor = M_PI / 180.0;
+									}
+								}
+								trim_angle2 = trim_par2->m_value * plane_angle_factor;
+							}
+							else
+							{
+								shared_ptr<IfcCartesianPoint> ifc_trim_point;
+								if (GeomUtils::findFirstInVector(trim2_vec, ifc_trim_point))
+								{
+									vec3 trim_point;
+									PointConverter::convertIfcCartesianPoint(ifc_trim_point, trim_point, length_factor);
+									trim_angle2 = m_point_converter->getAngleOnEllipse(ellipse_center, x_radius, y_radius, trim_point);
+								}
+							}
+						}
+
+						double start_angle = trim_angle1;
+						double opening_angle = 0;
+
+						if (sense_agreement)
+						{
+							if (trim_angle1 < trim_angle2)
+							{
+								opening_angle = trim_angle2 - trim_angle1;
+							}
+							else
+							{
+								// circle passes 0 angle
+								opening_angle = trim_angle2 - trim_angle1 + 2.0 * M_PI;
+							}
+						}
+						else
+						{
+							if (trim_angle1 > trim_angle2)
+							{
+								opening_angle = trim_angle2 - trim_angle1;
+							}
+							else
+							{
+								// circle passes 0 angle
+								opening_angle = trim_angle2 - trim_angle1 - 2.0 * M_PI;
+							}
+						}
+
+						while (opening_angle > 2.0 * M_PI)
+						{
+							opening_angle -= 2.0 * M_PI;
+						}
+						while (opening_angle < -2.0 * M_PI)
+						{
+							opening_angle += 2.0 * M_PI;
+						}
+
+						
+						int num_segments = m_geom_settings->getNumVerticesPerCircleWithRadius(std::max(x_radius, y_radius)) * (std::abs(opening_angle) / (2.0 * M_PI));
+						if (num_segments < m_geom_settings->getMinNumVerticesPerArc()) num_segments = m_geom_settings->getMinNumVerticesPerArc();
+						const double ellipse_center_x = 0.0;
+						const double ellipse_center_y = 0.0;
+						std::vector<vec2> ellipse_points;
+						std::vector<vec3> ellipse_points3D;
+						if (std::max(x_radius, y_radius) > 0.0)
+						{
+							GeomUtils::addArcWithEndPoint(ellipse_points, x_radius, y_radius, start_angle, opening_angle, ellipse_center_x, ellipse_center_y, num_segments);
+						}
+						else
+						{
+							ellipse_points.push_back(carve::geom::VECTOR(ellipse_center_x, ellipse_center_y));
 						}
 
 						// apply position
-						if( conic_position_matrix )
+						if (ellipse_points.size() > 0)
 						{
-							for( size_t i = 0; i < circle_points.size(); ++i )
+							// apply position
+							for (size_t i = 0; i < ellipse_points.size(); ++i)
 							{
-								vec3& point = circle_points[i];
-								point = conic_position_matrix->m_matrix * point;
+								vec2& point = ellipse_points[i];
+								vec3  point3D(carve::geom::VECTOR(point.x, point.y, 0));
+								if (conic_position_matrix)
+								{
+									point3D = conic_position_matrix->m_matrix * point3D;
+								}
+								point.x = point3D.x;
+								point.y = point3D.y;
+								ellipse_points3D.push_back(point3D);
 							}
-						}
-						GeomUtils::appendPointsToCurve( circle_points, target_vec );
 
-						vec3 pt0 = circle_points[0];
-						segment_start_points.push_back( pt0 );
+							GeomUtils::appendPointsToCurve(ellipse_points3D, target_vec);
+							segment_start_points.push_back(ellipse_points3D[0]);
+						}
 					}
 				}
 				return;

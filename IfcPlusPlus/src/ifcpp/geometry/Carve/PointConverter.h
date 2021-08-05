@@ -314,4 +314,42 @@ public:
 		}
 		return result_angle;
 	}
+	static double getAngleOnEllipse(const vec3& circle_center, double x_radius, double y_radius, const vec3& trim_point)
+	{
+		double result_angle = -1.0;
+		vec3 center_trim_point = trim_point - circle_center;
+		vec3 center_trim_point_direction = center_trim_point;
+		center_trim_point_direction.normalize();
+		double cos_angle = carve::geom::dot(center_trim_point_direction, vec3(carve::geom::VECTOR(1.0, 0, 0)));
+
+		if (std::abs(cos_angle) < 0.0001)
+		{
+			if (center_trim_point.y >= 0)
+			{
+				result_angle = M_PI_2;
+			}
+			else if (center_trim_point.y < 0)
+			{
+				result_angle = M_PI * 1.5;
+			}
+		}
+		else
+		{
+			if (center_trim_point.y >= 0)
+			{
+				result_angle = acos(cos_angle);
+			}
+			else if (center_trim_point.y < 0)
+			{
+				result_angle = 2.0 * M_PI - acos(cos_angle);
+			}
+		}
+
+		vec3 point_at_angle = carve::geom::VECTOR(cos(result_angle) * x_radius + circle_center.x, sin(result_angle) * y_radius + circle_center.y, circle_center.z) - trim_point;
+		if (std::abs(point_at_angle.length() - center_trim_point.length()) > 0.0001)
+		{
+			return -1.0;
+		}
+		return result_angle;
+	}
 };

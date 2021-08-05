@@ -320,6 +320,26 @@ namespace GeomUtils
 			angle += angle_delta;
 		}
 	}
+	inline void addArcWithEndPoint(std::vector<vec2>& coords, double radius_x, double radius_y, double start_angle, double opening_angle, double x_center, double y_center, int num_segments)
+	{
+		if (num_segments < 3)
+		{
+			num_segments = 3;
+		}
+
+		if (num_segments > 100)
+		{
+			num_segments = 100;
+		}
+
+		double angle = start_angle;
+		double angle_delta = opening_angle / (double)(num_segments - 1);
+		for (int i = 0; i < num_segments; ++i)
+		{
+			coords.push_back(carve::geom::VECTOR(radius_x * cos(angle) + x_center, radius_y * sin(angle) + y_center));
+			angle += angle_delta;
+		}
+	}
 
 	inline bool LineToLineIntersectionHelper( vec2& v1, vec2& v2, vec2& v3, vec2& v4, double & r, double & s )
 	{
